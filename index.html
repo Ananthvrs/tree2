@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>தென்னை மரம் ஏறும் துல்லியமான கவுண்டர்</title>
+    <style>
+        :root {
+            --primary: #2e7d32;
+            --primary-dark: #1b5e20;
+            --accent: #4caf50;
+            --bg-color: #f0f7f4;
+            --card-bg: #ffffff;
+            --text-color: #333333;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 480px;
+            background: var(--card-bg);
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+            padding: 20px;
+            box-sizing: border-box;
+            text-align: center;
+        }
+
+        h2 {
+            color: var(--primary-dark);
+            margin-top: 0;
+            font-size: 22px;
+            margin-bottom: 15px;
+        }
+
+        .worker-selection {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 6px;
+            font-size: 14px;
+            color: #555;
+        }
+
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            background-color: #fafafa;
+            box-sizing: border-box;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        select:focus {
+            border-color: var(--primary);
+        }
+
+        .sensor-status {
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            background: #fff3e0;
+            color: #e65100;
+            border: 1px solid #ffe0b2;
+        }
+
+        .sensor-status.active {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border: 1px solid #c8e6c9;
+        }
+
+        .counter-card {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(46, 125, 50, 0.3);
+        }
+
+        .counter-title {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.9;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .stat-box {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .stat-val {
+            font-size: 16px;
+            font-weight: bold;
+            color: var(--primary-dark);
+        }
+
+        .total-trees-box {
+            background: #e8f5e9;
+            border: 2px dashed var(--primary);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .total-trees-title {
+            font-size: 14px;
+            color: var(--primary-dark);
+            font-weight: bold;
+        }
+
+        .total-trees-val {
+            font-size: 48px;
+            font-weight: bold;
+            color: var(--primary-dark);
+            margin-top: 5px;
+            line-height: 1;
+        }
+
+        .btn-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        button:active {
+            opacity: 0.8;
+        }
+
+        .btn-start {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .btn-reset {
+            background-color: #616161;
+            color: white;
+        }
+
+        .log-box {
+            background: #f1f8f5;
+            border: 1px solid #c8e6c9;
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 13px;
+            color: #2e7d32;
+            min-height: 40px;
+            max-height: 90px;
+            overflow-y: auto;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>தென்னை மரம் ஏறும் கவுண்டர்</h2>
+
+    <!-- Worker Dropdown with Scroll Down -->
+    <div class="worker-selection">
+        <label for="workerSelect">தொழிலாளி பெயர் தேர்ந்தெடுக்கவும்:</label>
+        <select id="workerSelect" size="1">
+            <option value="" disabled selected>-- பெயரைத் தேர்ந்தெடுக்கவும் --</option>
+            <option value="C.KARTHICK">C.KARTHICK</option>
+            <option value="PUTHU.RAMASAMY">PUTHU.RAMASAMY</option>
+            <option value="MADHAVAN">MADHAVAN</option>
+            <option value="VEERAIYAN">VEERAIYAN</option>
+            <option value="MARIMUTHU">MARIMUTHU</option>
+            <option value="KALIDHASH">KALIDHASH</option>
+            <option value="PULI">PULI</option>
+            <option value="VIGNESH">VIGNESH</option>
+            <option value="VEERAPANDI">VEERAPANDI</option>
+            <option value="APPU">APPU</option>
+            <option value="TAMIL">TAMIL</option>
+            <option value="POWER">POWER</option>
+            <option value="PRASANTH">PRASANTH</option>
+            <option value="MURUGESH">MURUGESH</option>
+            <option value="DINESH">DINESH</option>
+            <option value="T.PANDI">T.PANDI</option>
+            <option value="PANDI">PANDI</option>
+            <option value="VIJAY">VIJAY</option>
+            <option value="S.R.RAJA">S.R.RAJA</option>
+            <option value="RAJASEKAR">RAJASEKAR</option>
+            <option value="BALA">BALA</option>
+            <option value="SHANGAR">SHANGAR</option>
+            <option value="GURU">GURU</option>
+            <option value="NEELAKANDAN">NEELAKANDAN</option>
+            <option value="SUPPAIYYA">SUPPAIYYA</option>
+            <option value="MURUGAN">MURUGAN</option>
+            <option value="SAKTHIVEL">SAKTHIVEL</option>
+            <option value="RAMESH">RAMESH</option>
+            <option value="SELVAM">SELVAM</option>
+            <option value="V.SEKAR">V.SEKAR</option>
+            <option value="SEKAR">SEKAR</option>
+        </select>
+    </div>
+
+    <!-- Sensor Status Indicator -->
+    <div id="sensorStatus" class="sensor-status">
+        சென்சார் நிலை: காத்திருக்கிறது...
+    </div>
+
+    <!-- Current Round Status Display -->
+    <div class="counter-card">
+        <div class="counter-title">தற்போதைய நிலை</div>
+        <div id="statusDisplay" style="font-size: 18px; font-weight: bold; margin-top: 10px;">தரையில்தான் உள்ளார்</div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+        <div class="stat-box">
+            <div class="stat-label">மதிப்பிடப்பட்ட உயரம்</div>
+            <div id="heightValue" class="stat-val">0.0 மீ</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-label">ஆன்லைன் நிலை</div>
+            <div id="syncStatus" class="stat-val" style="color: #2e7d32;">சேமிக்கப்பட்டது</div>
+        </div>
+    </div>
+
+    <!-- Total Tree Count Section -->
+    <div class="total-trees-box">
+        <div class="total-trees-title">முழுமையாக ஏறி இறங்கிய மொத்த மரங்கள்</div>
+        <div id="counterValue" class="total-trees-val">0</div>
+    </div>
+
+    <!-- Control Buttons -->
+    <div class="btn-container">
+        <button class="btn-start" onclick="requestSensorPermission()">சென்சார் இயக்கு</button>
+        <button class="btn-reset" onclick="resetCounter()">மீட்டமை</button>
+    </div>
+
+    <!-- Log Box -->
+    <div id="logBox" class="log-box">
+        செய்திகள் இங்கே தோன்றும்...
+    </div>
+</div>
+
+<script>
+    let treeCount = 0;
+    let stage = 0; // 0: தரையில், 1: 2 மீட்டருக்கு மேல் ஏறிவிட்டார், 2: ஏறி இறங்கிவிட்டார்
+    let currentHeight = 0;
+    let hasPermissionGranted = false;
+    
+    // Your Apps Script URL
+    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx0KF9jQyVuJlbsLTAOLqEmMN0fUjsSb90XJ8ShwJ6wgKUYuRAFK26S4Dnf70Pc_HmR/exec";
+
+    const workerSelect = document.getElementById('workerSelect');
+    const counterElement = document.getElementById('counterValue');
+    const heightElement = document.getElementById('heightValue');
+    const statusDisplay = document.getElementById('statusDisplay');
+    const sensorStatus = document.getElementById('sensorStatus');
+    const syncStatus = document.getElementById('syncStatus');
+    const logBox = document.getElementById('logBox');
+
+    function logMessage(msg) {
+        const timeStr = new Date().toLocaleTimeString();
+        logBox.innerHTML = `[${timeStr}] ${msg}<br>` + logBox.innerHTML;
+    }
+
+    workerSelect.addEventListener('change', function() {
+        const worker = workerSelect.value;
+        const savedData = localStorage.getItem('coconut_count_' + worker);
+        treeCount = savedData !== null ? parseInt(savedData) : 0;
+        counterElement.textContent = treeCount;
+        stage = 0;
+        currentHeight = 0;
+        statusDisplay.textContent = "தரையில்தான் உள்ளார்";
+        logMessage(`தொழிலாளி தேர்ந்தெடுக்கப்பட்டார்: ${worker}`);
+    });
+
+    function saveOnlineAndLocal() {
+        const worker = workerSelect.value;
+        if (!worker) return;
+        
+        // Local Storage Save
+        localStorage.setItem('coconut_count_' + worker, treeCount);
+        
+        // Online Cloud Sync to Google Sheets
+        syncStatus.textContent = "ஒத்திசைக்கிறது...";
+        
+        fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ 
+                worker: worker, 
+                count: treeCount, 
+                timestamp: new Date().toLocaleString() 
+            })
+        }).then(() => {
+            syncStatus.textContent = "ஆன்லைனில் சேமிக்கப்பட்டது";
+            logMessage(`கூகுள் ஷீட்டில் சேவ் ஆனது: ${worker} - மொத்தம்: ${treeCount} மரங்கள்`);
+        }).catch(err => {
+            syncStatus.textContent = "பிழை (Offline)";
+            logMessage(`ஆன்லைன் சேமிப்பில் பிழை: ${err}`);
+        });
+    }
+
+    function resetCounter() {
+        if (!workerSelect.value) {
+            alert('தயவுசெய்து முதலில் தொழிலாளி பெயரைத் தேர்ந்தெடுக்கவும்.');
+            return;
+        }
+        if (confirm('கவுண்டரை மீட்டமைக்க விரும்புகிறீர்களா?')) {
+            treeCount = 0;
+            stage = 0;
+            currentHeight = 0.0;
+            counterElement.textContent = treeCount;
+            heightElement.textContent = "0.0 மீ";
+            statusDisplay.textContent = "தரையில்தான் உள்ளார்";
+            saveOnlineAndLocal();
+            logMessage('கவுண்டர் மீட்டமைக்கப்பட்டது.');
+        }
+    }
+
+    window.addEventListener('load', () => {
+        logMessage('பக்கம் திறக்கப்பட்டது. சென்சார் இயக்க தயாராக உள்ளது.');
+        if (!(typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function')) {
+            initSensors();
+        } else {
+            sensorStatus.textContent = "சென்சார் இயக்க 'சென்சார் இயக்கு' பொத்தானை அழுத்தவும்";
+        }
+    });
+
+    function requestSensorPermission() {
+        if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+            DeviceMotionEvent.requestPermission()
+                .then(response => {
+                    if (response === 'granted') {
+                        initSensors();
+                    } else {
+                        alert('சென்சார் அனுமதி மறுக்கப்பட்டது.');
+                        sensorStatus.textContent = "சென்சார் அனுமதி மறுக்கப்பட்டது";
+                    }
+                })
+                .catch(console.error);
+        } else {
+            initSensors();
+        }
+    }
+
+    function initSensors() {
+        hasPermissionGranted = true;
+        sensorStatus.textContent = "சென்சார் செயலில் உள்ளது (Active)";
+        sensorStatus.classList.add('active');
+        logMessage('மோஷன் சென்சார் வெற்றிகரமாக இணைக்கப்பட்டது.');
+
+        if (window.DeviceMotionEvent) {
+            window.addEventListener('devicemotion', handleMotion, true);
+        } else {
+            logMessage('எச்சரிக்கை: உங்கள் சாதனத்தில் DeviceMotion சென்சார் கிடைக்கவில்லை.');
+        }
+    }
+
+    let lastTime = Date.now();
+
+    function handleMotion(event) {
+        if (!hasPermissionGranted) return;
+
+        const accZ = event.accelerationIncludingGravity.z;
+        if (accZ === null || accZ === undefined) return;
+
+        const currentTime = Date.now();
+        const dt = (currentTime - lastTime) / 1000.0;
+        lastTime = currentTime;
+
+        if (dt > 0.1 || dt <= 0) return;
+
+        // சாதாரண நடையைத் தவிர்க்க கடுமையான வரம்பு (Strict Threshold)
+        // 1. இரண்டு மீட்டருக்கு மேல் மேலே ஏறும் பொழுது (Upward acceleration jump)
+        if (accZ > 9.81 + 1.8) {
+            if (stage === 0) {
+                stage = 1;
+                currentHeight = 4.5; // 2 மீட்டருக்கு மேல் உள்ள உயரம்
+                heightElement.textContent = currentHeight.toFixed(1) + " மீ";
+                statusDisplay.textContent = "மரத்தில் ஏறியுள்ளார் 🌴";
+                logMessage('2 மீட்டருக்கு மேல் ஏறுவது சென்சார் மூலம் கண்டறியப்பட்டது.');
+            }
+        } 
+        // 2. மரம் ஏறிவிட்டு மீண்டும் கீழே இறங்கும் பொழுது (Downward acceleration)
+        else if (accZ < 9.81 - 1.8) {
+            if (stage === 1) {
+                // ஏறிவிட்டு இறங்கிவிட்டதால் இப்போது ஒரு முழு மரம் கவுண்ட் ஆகும்
+                stage = 0;
+                treeCount++;
+                currentHeight = 0.0;
+                heightElement.textContent = currentHeight.toFixed(1) + " மீ";
+                counterElement.textContent = treeCount;
+                statusDisplay.textContent = "தரையில்தான் உள்ளார்";
+                
+                if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+                playBeep();
+                saveOnlineAndLocal();
+                logMessage(`மரம் ஏறி இறங்கியது உறுதி! மொத்த மரங்கள்: ${treeCount}`);
+            }
+        }
+    }
+
+    function playBeep() {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.value = 800;
+            osc.type = 'sine';
+            gain.gain.setValueAtTime(0.1, ctx.currentTime);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.15);
+        } catch (e) {}
+    }
+</script>
+
+</body>
+</html>
