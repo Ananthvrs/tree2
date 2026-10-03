@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>தென்னை மரம் ஏறி வெட்டும் துல்லியமான கவுண்டர்</title>
+    <title>தென்னை மரம் ஏறி வெட்டும் ஆட்டோமேட்டிக் கவுண்டர்</title>
     <style>
         :root {
             --primary: #2e7d32;
@@ -203,7 +203,7 @@
 <body>
 
 <div class="container">
-    <h2>தென்னை மரம் ஏறி வெட்டும் துல்லியமான கவுண்டர்</h2>
+    <h2>தென்னை மரம் ஆட்டோமேட்டிக் கவுண்டர்</h2>
 
     <!-- Worker Dropdown with Scroll Down -->
     <div class="worker-selection">
@@ -251,15 +251,15 @@
 
     <!-- Current Round Status Display -->
     <div class="counter-card">
-        <div class="counter-title">மரம் வெட்டும் நிலை (Process)</div>
+        <div class="counter-title">சென்சார் நிலை (Automatic Phase)</div>
         <div id="statusDisplay" style="font-size: 16px; font-weight: bold; margin-top: 10px;">தரையில்தான் உள்ளார்</div>
     </div>
 
     <!-- Stats Grid -->
     <div class="stats-grid">
         <div class="stat-box">
-            <div class="stat-label">மதிப்பிடப்பட்ட உயரம்</div>
-            <div id="heightValue" class="stat-val">0.0 மீ</div>
+            <div class="stat-label">செயல்முறை நிலை</div>
+            <div id="phaseValue" class="stat-val">தரை நிலை</div>
         </div>
         <div class="stat-box">
             <div class="stat-label">ஆன்லைன் நிலை</div>
@@ -287,10 +287,13 @@
 
 <script>
     let treeCount = 0;
-    let workPhase = 0; // 0: தரை, 1: ஏறுதல், 2: வெட்டுதல், 3: இறங்குதல்
+    // Automatic State Machine:
+    // 0: தரை நிலை
+    // 1: மரம் ஏறுதல் (Climbing up)
+    // 2: உச்சியில் காய் வெட்டுதல் (Cutting coconut/fronds)
+    // 3: கீழே இறங்குதல் (Descending back to ground -> Triggers +1 count automatically)
+    let workPhase = 0; 
     let phaseTimer = 0;
-    let currentHeight = 0;
-    let velocityZ = 0;
     let hasPermissionGranted = false;
     
     // Unchanged Apps Script URL for Google Sheets Sync
@@ -298,7 +301,7 @@
 
     const workerSelect = document.getElementById('workerSelect');
     const counterElement = document.getElementById('counterValue');
-    const heightElement = document.getElementById('heightValue');
+    const phaseElement = document.getElementById('phaseValue');
     const statusDisplay = document.getElementById('statusDisplay');
     const sensorStatus = document.getElementById('sensorStatus');
     const syncStatus = document.getElementById('syncStatus');
@@ -316,10 +319,8 @@
         counterElement.textContent = treeCount;
         workPhase = 0;
         phaseTimer = 0;
-        currentHeight = 0;
-        velocityZ = 0;
-        heightElement.textContent = "0.0 மீ";
         statusDisplay.textContent = "தரையில்தான் உள்ளார்";
+        phaseElement.textContent = "தரை நிலை";
         logMessage(`தொழிலாளி தேர்ந்தெடுக்கப்பட்டார்: ${worker}`);
     });
 
@@ -362,11 +363,9 @@
             treeCount = 0;
             workPhase = 0;
             phaseTimer = 0;
-            currentHeight = 0;
-            velocityZ = 0;
             counterElement.textContent = treeCount;
-            heightElement.textContent = "0.0 மீ";
             statusDisplay.textContent = "தரையில்தான் உள்ளார்";
+            phaseElement.textContent = "தரை நிலை";
             saveOnlineAndLocal();
             logMessage('கவுண்டர் மீட்டமைக்கப்பட்டது.');
         }
@@ -427,56 +426,45 @@
 
         if (dt > 0.1 || dt <= 0) return;
 
-        // Linear acceleration calculation (subtracting gravity approx 9.81)
         const linearAccZ = accZ - 9.81;
 
-        // Height estimation via physics integration during active phases
-        if (workPhase > 0 && workPhase < 3) {
-            velocityZ += linearAccZ * dt;
-            currentHeight += velocityZ * dt;
-            if (currentHeight < 0) currentHeight = 0;
-            heightElement.textContent = currentHeight.toFixed(1) + " மீ";
-        }
-
-        // Phase 0 -> Phase 1: மரம் ஏறுதல் (Climbing with timing interval > 2s)
-        if (linearAccZ > 1.8 && workPhase === 0) {
+        // Stage 0 -> 1: மரம் ஏறுவது (Upward motion with strict threshold to ignore normal walking)
+        if (linearAccZ > 2.0 && workPhase === 0) {
             phaseTimer += dt;
             if (phaseTimer >= 2.0) {
                 workPhase = 1;
                 phaseTimer = 0;
-                currentHeight = 0.5; // Initial climb height marker
                 statusDisplay.textContent = "மரத்தில் ஏறிக்கொண்டிருக்கிறார் 🌴";
-                logMessage('மரம் ஏறுதல் காலமுறைப்படி உறுதி செய்யப்பட்டது.');
+                phaseElement.textContent = "ஏறுதல்";
+                logMessage('தானியங்கி: மரம் ஏறுவது கண்டறியப்பட்டது.');
             }
         } 
-        // Phase 1 -> Phase 2: உச்சியில் காய் வெட்டுதல் (Cutting action with timing interval > 3s)
+        // Stage 1 -> 2: உச்சியில் காய் வெட்டுவது (Cutting action detection via rotation/shaking)
         else if (workPhase === 1 && (rotRate > 50 || Math.abs(event.acceleration.x || 0) > 4.0)) {
             phaseTimer += dt;
             if (phaseTimer >= 3.0) {
                 workPhase = 2;
                 phaseTimer = 0;
                 statusDisplay.textContent = "தேங்காய் / மட்டை வெட்டுகிறார் 🥥";
-                logMessage('உச்சியில் காய் வெட்டும் அசைவு உறுதி செய்யப்பட்டது.');
+                phaseElement.textContent = "வெட்டுதல்";
+                logMessage('தானியங்கி: உச்சியில் காய் வெட்டும் அசைவு உறுதி செய்யப்பட்டது.');
             }
         }
-        // Phase 2 -> Phase 3 (Complete): கீழே இறங்குதல் மற்றும் தரை சேருதல் (Descent completion)
-        else if (workPhase === 2 && linearAccZ < -1.8) {
+        // Stage 2 -> 3 (Complete): கீழே இறங்குவது மற்றும் தரை சேருவது (Descent complete -> Triggers +1 count automatically)
+        else if (workPhase === 2 && linearAccZ < -2.0) {
             phaseTimer += dt;
-            if (phaseTimer >= 2.5) {
-                workPhase = 0; // Reset
+            if (phaseTimer >= 2.0) {
+                workPhase = 0; // Reset for next tree
                 phaseTimer = 0;
-                currentHeight = 0.0;
-                velocityZ = 0;
-                heightElement.textContent = "0.0 மீ";
-                
                 treeCount++;
                 counterElement.textContent = treeCount;
                 statusDisplay.textContent = "தரையில்தான் உள்ளார் (மரம் முடிந்தது)";
+                phaseElement.textContent = "தரை நிலை";
                 
                 if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
                 playBeep();
                 saveOnlineAndLocal();
-                logMessage(`மரம் ஏறி, வெட்டி, இறங்கியது உறுதி! மொத்த மரங்கள்: ${treeCount}`);
+                logMessage(`தானியங்கி: மரம் ஏறி, வெட்டி, இறங்கியது உறுதி! மொத்த மரங்கள்: ${treeCount}`);
             }
         }
     }
