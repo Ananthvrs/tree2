@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>தென்னை மரம் ஏறி காய் வெட்டும் துல்லியமான கவுண்டர்</title>
+    <title>தென்னை மரம் ஏறி வெட்டும் துல்லியமான கவுண்டர்</title>
     <style>
         :root {
             --primary: #2e7d32;
@@ -128,7 +128,7 @@
         }
 
         .stat-val {
-            font-size: 16px;
+            font-size: 15px;
             font-weight: bold;
             color: var(--primary-dark);
         }
@@ -259,7 +259,7 @@
     <div class="stats-grid">
         <div class="stat-box">
             <div class="stat-label">செயல்முறை நிலை</div>
-            <div id="phaseValue" class="stat-val">நமது தளம்</div>
+            <div id="phaseValue" class="stat-val">தரை நிலை</div>
         </div>
         <div class="stat-box">
             <div class="stat-label">ஆன்லைன் நிலை</div>
@@ -287,7 +287,11 @@
 
 <script>
     let treeCount = 0;
-    // Phase: 0 = தரையில், 1 = மரத்தில் ஏறிவிட்டார், 2 = காய்/மட்டை வெட்டும் அசைவுகள் (Cutting), 3 = கீழே இறங்கிவிட்டார் (மரம் நிறைவு)
+    // Strict 4-Stage State Machine to prevent false counts while walking:
+    // 0: தரையில் உள்ளார்
+    // 1: தென்னை மரத்தில் மேலே ஏறிவிட்டார் (Upward Climb Detection)
+    // 2: உச்சியில் தேங்காய் / மட்டை வெட்டும் அசைவு (Cutting Action Detection)
+    // 3: கீழே இறங்கிவிட்டார் (Complete Descent -> Triggers +1 Count)
     let workPhase = 0; 
     let hasPermissionGranted = false;
     
@@ -314,7 +318,7 @@
         counterElement.textContent = treeCount;
         workPhase = 0;
         statusDisplay.textContent = "தரையில்தான் உள்ளார்";
-        phaseElement.textContent = "தளம்";
+        phaseElement.textContent = "தரை நிலை";
         logMessage(`தொழிலாளி தேர்ந்தெடுக்கப்பட்டார்: ${worker}`);
     });
 
@@ -358,7 +362,7 @@
             workPhase = 0;
             counterElement.textContent = treeCount;
             statusDisplay.textContent = "தரையில்தான் உள்ளார்";
-            phaseElement.textContent = "தளம்";
+            phaseElement.textContent = "தரை நிலை";
             saveOnlineAndLocal();
             logMessage('கவுண்டர் மீட்டமைக்கப்பட்டது.');
         }
@@ -409,7 +413,8 @@
         if (!hasPermissionGranted) return;
 
         const accZ = event.accelerationIncludingGravity.z;
-        const rotRate = event.rotationRate ? Math.abs(event.rotationRate.alpha || 0) : 0; // வெட்டும் அசைவுகளுக்கான சுழற்சி வேகம்
+        // Rotation and acceleration filters for cutting actions
+        const rotRate = event.rotationRate ? Math.abs(event.rotationRate.alpha || 0) : 0; 
         
         if (accZ === null || accZ === undefined) return;
 
@@ -419,32 +424,32 @@
 
         if (dt > 0.1 || dt <= 0) return;
 
-        // Phase 1: 2 மீட்டருக்கு மேல் ஏறுவது (Upward motion)
-        if (accZ > 9.81 + 1.8 && workPhase === 0) {
+        // Stage 0 -> 1: மரம் ஏறுதல் (Upward climb acceleration with strict threshold to ignore walking)
+        if (accZ > 9.81 + 2.2 && workPhase === 0) {
             workPhase = 1;
-            statusDisplay.textContent = "மரத்தில் ஏறியுள்ளார் 🌴";
+            statusDisplay.textContent = "மரத்தில் ஏறிக்கொண்டிருக்கிறார் 🌴";
             phaseElement.textContent = "ஏறுதல்";
             logMessage('ഘட்டம் 1: மரம் ஏறுவது கண்டறியப்பட்டது.');
         } 
-        // Phase 2: உச்சியில் தேங்காய் / மட்டை வெட்டுவது (Cutting motion - rotation & sideways acceleration changes)
-        else if (workPhase === 1 && (rotRate > 45 || Math.abs(event.acceleration.x || 0) > 3.5)) {
+        // Stage 1 -> 2: உச்சியில் தேங்காய் / மட்டை வெட்டுவது (Cutting action detection)
+        else if (workPhase === 1 && (rotRate > 60 || Math.abs(event.acceleration.x || 0) > 4.5)) {
             workPhase = 2;
             statusDisplay.textContent = "தேங்காய் / மட்டை வெட்டுகிறார் 🥥";
             phaseElement.textContent = "வெட்டுதல்";
             logMessage('ഘட்டம் 2: காய் வெட்டும் அசைவு கண்டறியப்பட்டது.');
         }
-        // Phase 3: வெட்டி முடித்துவிட்டு கீழே இறங்குவது (Downward motion back to ground)
-        else if (workPhase === 2 && accZ < 9.81 - 1.8) {
-            workPhase = 0; // சுழற்சி முடிந்தது
+        // Stage 2 -> 3 (Final): வெட்டி முடித்துவிட்டு கீழே இறங்குவது (Descent back to ground -> Triggers +1 count)
+        else if (workPhase === 2 && accZ < 9.81 - 2.2) {
+            workPhase = 0; // Reset for next tree
             treeCount++;
             counterElement.textContent = treeCount;
             statusDisplay.textContent = "தரையில்தான் உள்ளார் (மரம் முடிந்தது)";
-            phaseElement.textContent = "முடிந்தது";
+            phaseElement.textContent = "தரை நிலை";
             
             if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
             playBeep();
             saveOnlineAndLocal();
-            logMessage(`மரம் ஏறி, காய் வெட்டி, இறங்கியது உறுதி! மொத்த மரங்கள்: ${treeCount}`);
+            logMessage(`தென்னை மரத்தில் ஏறி, காய் வெட்டி, இறங்கியது உறுதி! மொத்த மரங்கள்: ${treeCount}`);
         }
     }
 
