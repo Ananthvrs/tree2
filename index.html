@@ -287,15 +287,15 @@
 
 <script>
     let treeCount = 0;
-    // 4-Stage Strict Verification State Machine:
-    // 0: தரையில் உள்ளார் (Walking/Normal ground state - ignores normal walking steps)
-    // 1: மரத்தில் மேலே ஏறிவிட்டார் (Strict upward climbing detection)
-    // 2: உச்சியில் தேங்காய் அல்லது மட்டை வெட்டும் அசைவு (Cutting action detection)
-    // 3: கீழே இறங்குவது மற்றும் நிறைவுறுவது (Descent back to ground -> Triggers +1 count and sync)
+    // Strict State Machine:
+    // 0: தரையில் உள்ளார்
+    // 1: மரம் ஏறிவிட்டார் (Climbing Up)
+    // 2: உச்சியில் தேங்காய் / மட்டை வெட்டுகிறார் (Cutting Action)
+    // 3: கீழே இறங்கிவிட்டார் (Descent Complete -> Counts +1 Tree)
     let workPhase = 0; 
     let hasPermissionGranted = false;
     
-    // Your exact Apps Script URL (unchanged)
+    // Unchanged Apps Script URL for Google Sheets Sync
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx0KF9jQyVuJlbsLTAOLqEmMN0fUjsSb90XJ8ShwJ6wgKUYuRAFK26S4Dnf70Pc_HmR/exec";
 
     const workerSelect = document.getElementById('workerSelect');
@@ -329,7 +329,7 @@
         // Local Storage Save
         localStorage.setItem('coconut_count_' + worker, treeCount);
         
-        // Online Cloud Sync to Google Sheets (unchanged structure)
+        // Online Cloud Sync to Google Sheets
         syncStatus.textContent = "ஒத்திசைக்கிறது...";
         
         fetch(APPS_SCRIPT_URL, {
@@ -413,7 +413,6 @@
         if (!hasPermissionGranted) return;
 
         const accZ = event.accelerationIncludingGravity.z;
-        // Rotation and acceleration filters for cutting actions (ignores walking movements completely)
         const rotRate = event.rotationRate ? Math.abs(event.rotationRate.alpha || 0) : 0; 
         
         if (accZ === null || accZ === undefined) return;
@@ -424,23 +423,23 @@
 
         if (dt > 0.1 || dt <= 0) return;
 
-        // Stage 0 -> 1: மரம் ஏறுதல் (High upward acceleration threshold to prevent walking triggers)
+        // Stage 0 -> 1: மரம் ஏறுவது (Strict upward acceleration to ignore normal walking)
         if (accZ > 9.81 + 2.5 && workPhase === 0) {
             workPhase = 1;
             statusDisplay.textContent = "மரத்தில் ஏறிக்கொண்டிருக்கிறார் 🌴";
             phaseElement.textContent = "ஏறுதல்";
             logMessage('ഘட்டம் 1: மரம் ஏறுவது கண்டறியப்பட்டது.');
         } 
-        // Stage 1 -> 2: உச்சியில் தேங்காய் / மட்டை வெட்டுவது (Cutting action detection via rotation/sideways movement)
-        else if (workPhase === 1 && (rotRate > 65 || Math.abs(event.acceleration.x || 0) > 5.0)) {
+        // Stage 1 -> 2: உச்சியில் தேங்காய் / மட்டை வெட்டுவது (Cutting action rotation/shake)
+        else if (workPhase === 1 && (rotRate > 65 || Math.abs(event.acceleration.x || 0) > 4.8)) {
             workPhase = 2;
             statusDisplay.textContent = "தேங்காய் / மட்டை வெட்டுகிறார் 🥥";
             phaseElement.textContent = "வெட்டுதல்";
             logMessage('ഘட்டம் 2: காய் வெட்டும் அசைவு கண்டறியப்பட்டது.');
         }
-        // Stage 2 -> 3 (Final): வெட்டி முடித்துவிட்டு கீழே இறங்குவது (Descent back -> Triggers +1 count and sync)
+        // Stage 2 -> 3 (Final): வெட்டிவிட்டு கீழே இறங்குவது (Descent to ground -> Triggers +1 count and Cloud Save)
         else if (workPhase === 2 && accZ < 9.81 - 2.5) {
-            workPhase = 0; // Reset state for the next tree
+            workPhase = 0; // Reset for next tree
             treeCount++;
             counterElement.textContent = treeCount;
             statusDisplay.textContent = "தரையில்தான் உள்ளார் (மரம் முடிந்தது)";
@@ -449,7 +448,7 @@
             if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
             playBeep();
             saveOnlineAndLocal();
-            logMessage(`தென்னை மரத்தில் ஏறி, காய் வெட்டி, இறங்கியது உறுதி! மொத்த மரங்கள்: ${treeCount}`);
+            logMessage(`மரம் ஏறி, வெட்டி, இறங்கியது உறுதி! மொத்த மரங்கள்: ${treeCount}`);
         }
     }
 
