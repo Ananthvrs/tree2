@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>தென்னை மரம் ஏறி வெட்டும் ஆட்டோமேட்டிக் கவுண்டர்</title>
+    <title>தென்னை மரம் ஏறி இறங்கும் துல்லியமான கவுண்டர்</title>
     <style>
         :root {
             --primary: #2e7d32;
@@ -203,7 +203,7 @@
 <body>
 
 <div class="container">
-    <h2>தென்னை மரம் ஆட்டோமேட்டிக் கவுண்டர்</h2>
+    <h2>தென்னை மரம் ஏறி இறங்கும் கவுண்டர்</h2>
 
     <!-- Worker Dropdown with Scroll Down -->
     <div class="worker-selection">
@@ -251,7 +251,7 @@
 
     <!-- Current Round Status Display -->
     <div class="counter-card">
-        <div class="counter-title">சென்சார் நிலை (Automatic Phase)</div>
+        <div class="counter-title">மரம் ஏறும் & இறங்கும் நிலை</div>
         <div id="statusDisplay" style="font-size: 16px; font-weight: bold; margin-top: 10px;">தரையில்தான் உள்ளார்</div>
     </div>
 
@@ -269,7 +269,7 @@
 
     <!-- Total Tree Count Section -->
     <div class="total-trees-box">
-        <div class="total-trees-title">வெட்டி முடித்த மொத்த மரங்கள்</div>
+        <div class="total-trees-title">ஏறி இறங்கிய மொத்த மரங்கள்</div>
         <div id="counterValue" class="total-trees-val">0</div>
     </div>
 
@@ -287,11 +287,10 @@
 
 <script>
     let treeCount = 0;
-    // Automatic State Machine:
+    // State Machine:
     // 0: தரை நிலை
-    // 1: மரம் ஏறுதல் (Climbing up)
-    // 2: உச்சியில் காய் வெட்டுதல் (Cutting coconut/fronds)
-    // 3: கீழே இறங்குதல் (Descending back to ground -> Triggers +1 count automatically)
+    // 1: ஏறுமதி (Ascent - Climbing up with strict duration check)
+    // 2: இறக்குமதி (Descent - Climbing down to ground -> Triggers +1 count automatically)
     let workPhase = 0; 
     let phaseTimer = 0;
     let hasPermissionGranted = false;
@@ -416,8 +415,6 @@
         if (!hasPermissionGranted) return;
 
         const accZ = event.accelerationIncludingGravity.z;
-        const rotRate = event.rotationRate ? Math.abs(event.rotationRate.alpha || 0) : 0; 
-        
         if (accZ === null || accZ === undefined) return;
 
         const currentTime = Date.now();
@@ -428,32 +425,21 @@
 
         const linearAccZ = accZ - 9.81;
 
-        // Stage 0 -> 1: மரம் ஏறுவது (Upward motion with strict threshold to ignore normal walking)
-        if (linearAccZ > 2.0 && workPhase === 0) {
+        // Stage 0 -> 1: ஏறுமதி (Ascent - Climbing up with strict threshold to ignore normal walking)
+        if (linearAccZ > 2.2 && workPhase === 0) {
             phaseTimer += dt;
-            if (phaseTimer >= 2.0) {
+            if (phaseTimer >= 2.5) { // குறைந்தது 2.5 வினாடிகள் தொடர் ஏறும் அசைவு இருக்க வேண்டும்
                 workPhase = 1;
                 phaseTimer = 0;
                 statusDisplay.textContent = "மரத்தில் ஏறிக்கொண்டிருக்கிறார் 🌴";
-                phaseElement.textContent = "ஏறுதல்";
-                logMessage('தானியங்கி: மரம் ஏறுவது கண்டறியப்பட்டது.');
+                phaseElement.textContent = "ஏறுமதி (Ascent)";
+                logMessage('மரம் ஏறுமதி (Ascent) உறுதி செய்யப்பட்டது.');
             }
         } 
-        // Stage 1 -> 2: உச்சியில் காய் வெட்டுவது (Cutting action detection via rotation/shaking)
-        else if (workPhase === 1 && (rotRate > 50 || Math.abs(event.acceleration.x || 0) > 4.0)) {
+        // Stage 1 -> 2 (Complete): இறக்குமதி (Descent - Climbing down back to ground -> Triggers +1 count automatically)
+        else if (workPhase === 1 && linearAccZ < -2.2) {
             phaseTimer += dt;
-            if (phaseTimer >= 3.0) {
-                workPhase = 2;
-                phaseTimer = 0;
-                statusDisplay.textContent = "தேங்காய் / மட்டை வெட்டுகிறார் 🥥";
-                phaseElement.textContent = "வெட்டுதல்";
-                logMessage('தானியங்கி: உச்சியில் காய் வெட்டும் அசைவு உறுதி செய்யப்பட்டது.');
-            }
-        }
-        // Stage 2 -> 3 (Complete): கீழே இறங்குவது மற்றும் தரை சேருவது (Descent complete -> Triggers +1 count automatically)
-        else if (workPhase === 2 && linearAccZ < -2.0) {
-            phaseTimer += dt;
-            if (phaseTimer >= 2.0) {
+            if (phaseTimer >= 2.0) { // குறைந்தது 2 வினாடிகள் இறங்கும் அசைவு இருக்க வேண்டும்
                 workPhase = 0; // Reset for next tree
                 phaseTimer = 0;
                 treeCount++;
@@ -464,7 +450,7 @@
                 if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
                 playBeep();
                 saveOnlineAndLocal();
-                logMessage(`தானியங்கி: மரம் ஏறி, வெட்டி, இறங்கியது உறுதி! மொத்த மரங்கள்: ${treeCount}`);
+                logMessage(`மரம் ஏறி இறக்குமதி (Descent) முடிந்தது! மொத்த மரங்கள்: ${treeCount}`);
             }
         }
     }
