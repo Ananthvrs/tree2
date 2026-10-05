@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>தென்னை மரம் ஏறி இறங்கும் துல்லியமான கவுண்டர்</title>
+    <title>தென்னை மரம் வெட்டும் அதிர்வு கவுண்டர்</title>
     <style>
         :root {
             --primary: #2e7d32;
@@ -203,7 +203,7 @@
 <body>
 
 <div class="container">
-    <h2>தென்னை மரம் ஏறி இறங்கும் கவுண்டர்</h2>
+    <h2>தென்னை மரம் வெட்டும் அதிர்வு கவுண்டர்</h2>
 
     <!-- Worker Dropdown with Scroll Down -->
     <div class="worker-selection">
@@ -251,15 +251,15 @@
 
     <!-- Current Round Status Display -->
     <div class="counter-card">
-        <div class="counter-title">மரம் ஏறும் & இறங்கும் நிலை</div>
+        <div class="counter-title">வெட்டும் அதிர்வு நிலை (Cutting Status)</div>
         <div id="statusDisplay" style="font-size: 16px; font-weight: bold; margin-top: 10px;">தரையில்தான் உள்ளார்</div>
     </div>
 
     <!-- Stats Grid -->
     <div class="stats-grid">
         <div class="stat-box">
-            <div class="stat-label">செயல்முறை நிலை</div>
-            <div id="phaseValue" class="stat-val">தரை நிலை</div>
+            <div class="stat-label">வெட்டு அதிர்வுகள் (Cuts)</div>
+            <div id="cutCountValue" class="stat-val">0 / 4</div>
         </div>
         <div class="stat-box">
             <div class="stat-label">ஆன்லைன் நிலை</div>
@@ -269,7 +269,7 @@
 
     <!-- Total Tree Count Section -->
     <div class="total-trees-box">
-        <div class="total-trees-title">ஏறி இறங்கிய மொத்த மரங்கள்</div>
+        <div class="total-trees-title">வெட்டி முடித்த மொத்த மரங்கள்</div>
         <div id="counterValue" class="total-trees-val">0</div>
     </div>
 
@@ -287,20 +287,17 @@
 
 <script>
     let treeCount = 0;
-    // State Machine:
-    // 0: தரை நிலை
-    // 1: ஏறுமதி (Ascent - Climbing up with strict duration check)
-    // 2: இறக்குமதி (Descent - Climbing down to ground -> Triggers +1 count automatically)
-    let workPhase = 0; 
-    let phaseTimer = 0;
+    let cutVibrations = 0; // வெட்டும் அதிர்வுகளின் எண்ணிக்கை
+    let workPhase = 0; // 0: தரை, 1: ஏறுதல், 2: வெட்டுதல் (பல அதிர்வுகள்), 3: இறங்குதல்
     let hasPermissionGranted = false;
+    let lastCutTime = 0;
     
     // Unchanged Apps Script URL for Google Sheets Sync
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx0KF9jQyVuJlbsLTAOLqEmMN0fUjsSb90XJ8ShwJ6wgKUYuRAFK26S4Dnf70Pc_HmR/exec";
 
     const workerSelect = document.getElementById('workerSelect');
     const counterElement = document.getElementById('counterValue');
-    const phaseElement = document.getElementById('phaseValue');
+    const cutCountElement = document.getElementById('cutCountValue');
     const statusDisplay = document.getElementById('statusDisplay');
     const sensorStatus = document.getElementById('sensorStatus');
     const syncStatus = document.getElementById('syncStatus');
@@ -317,9 +314,9 @@
         treeCount = savedData !== null ? parseInt(savedData) : 0;
         counterElement.textContent = treeCount;
         workPhase = 0;
-        phaseTimer = 0;
+        cutVibrations = 0;
+        cutCountElement.textContent = "0 / 4";
         statusDisplay.textContent = "தரையில்தான் உள்ளார்";
-        phaseElement.textContent = "தரை நிலை";
         logMessage(`தொழிலாளி தேர்ந்தெடுக்கப்பட்டார்: ${worker}`);
     });
 
@@ -361,10 +358,10 @@
         if (confirm('கவுண்டரை மீட்டமைக்க விரும்புகிறீர்களா?')) {
             treeCount = 0;
             workPhase = 0;
-            phaseTimer = 0;
+            cutVibrations = 0;
             counterElement.textContent = treeCount;
+            cutCountElement.textContent = "0 / 4";
             statusDisplay.textContent = "தரையில்தான் உள்ளார்";
-            phaseElement.textContent = "தரை நிலை";
             saveOnlineAndLocal();
             logMessage('கவுண்டர் மீட்டமைக்கப்பட்டது.');
         }
@@ -415,6 +412,9 @@
         if (!hasPermissionGranted) return;
 
         const accZ = event.accelerationIncludingGravity.z;
+        const rotRate = event.rotationRate ? Math.abs(event.rotationRate.alpha || 0) : 0; 
+        const accX = event.acceleration ? Math.abs(event.acceleration.x || 0) : 0;
+        
         if (accZ === null || accZ === undefined) return;
 
         const currentTime = Date.now();
@@ -425,33 +425,43 @@
 
         const linearAccZ = accZ - 9.81;
 
-        // Stage 0 -> 1: ஏறுமதி (Ascent - Climbing up with strict threshold to ignore normal walking)
-        if (linearAccZ > 2.2 && workPhase === 0) {
-            phaseTimer += dt;
-            if (phaseTimer >= 2.5) { // குறைந்தது 2.5 வினாடிகள் தொடர் ஏறும் அசைவு இருக்க வேண்டும்
-                workPhase = 1;
-                phaseTimer = 0;
-                statusDisplay.textContent = "மரத்தில் ஏறிக்கொண்டிருக்கிறார் 🌴";
-                phaseElement.textContent = "ஏறுமதி (Ascent)";
-                logMessage('மரம் ஏறுமதி (Ascent) உறுதி செய்யப்பட்டது.');
-            }
+        // Stage 0 -> 1: மரம் ஏறுவது (Ascent)
+        if (linearAccZ > 2.0 && workPhase === 0) {
+            workPhase = 1;
+            statusDisplay.textContent = "மரத்தில் ஏறிக்கொண்டிருக்கிறார் 🌴";
+            logMessage('மரம் ஏறுவது கண்டறியப்பட்டது.');
         } 
-        // Stage 1 -> 2 (Complete): இறக்குமதி (Descent - Climbing down back to ground -> Triggers +1 count automatically)
-        else if (workPhase === 1 && linearAccZ < -2.2) {
-            phaseTimer += dt;
-            if (phaseTimer >= 2.0) { // குறைந்தது 2 வினாடிகள் இறங்கும் அசைவு இருக்க வேண்டும்
-                workPhase = 0; // Reset for next tree
-                phaseTimer = 0;
-                treeCount++;
-                counterElement.textContent = treeCount;
-                statusDisplay.textContent = "தரையில்தான் உள்ளார் (மரம் முடிந்தது)";
-                phaseElement.textContent = "தரை நிலை";
-                
-                if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-                playBeep();
-                saveOnlineAndLocal();
-                logMessage(`மரம் ஏறி இறக்குமதி (Descent) முடிந்தது! மொத்த மரங்கள்: ${treeCount}`);
+        // Stage 1 -> 2: உச்சியில் வெட்டும் அதிர்வுகள் (Multiple Cutting Vibrations Required e.g., 4 cuts)
+        else if (workPhase === 1 && (rotRate > 55 || accX > 4.2)) {
+            // வெட்டுதல்களுக்கு இடையே குறைந்தபட்ச இடைவெளி இருக்க வேண்டும் (தவறான அதிர்வுகளைத் தவிர்க்க)
+            if (currentTime - lastCutTime > 800) {
+                cutVibrations++;
+                lastCutTime = currentTime;
+                cutCountElement.textContent = cutVibrations + " / 4";
+                statusDisplay.textContent = `காய் வெட்டுகிறார் (${cutVibrations}/4 வெட்டுகள்) 🥥`;
+                logMessage(`வெட்டு அதிர்வு பதிவு: ${cutVibrations}/4`);
+
+                // 4 வெட்டுகள் முடிந்ததும் அடுத்த கட்டத்திற்கு (இறங்குதல்) செல்லும்
+                if (cutVibrations >= 4) {
+                    workPhase = 2;
+                    statusDisplay.textContent = "வெட்டி முடித்தார். கீழே இறங்குகிறார் ⬇️";
+                    logMessage('தேவையான அனைத்து வெட்டுகளும் முடிந்துவிட்டன. இறங்கத் தொடங்குகிறார்.');
+                }
             }
+        }
+        // Stage 2 -> 3 (Complete): கீழே இறங்குவது மற்றும் தரை சேருவது (Descent complete -> Triggers +1 count)
+        else if (workPhase === 2 && linearAccZ < -2.0) {
+            workPhase = 0; // Reset for next tree
+            cutVibrations = 0;
+            cutCountElement.textContent = "0 / 4";
+            treeCount++;
+            counterElement.textContent = treeCount;
+            statusDisplay.textContent = "தரையில்தான் உள்ளார் (மரம் முடிந்தது)";
+            
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+            playBeep();
+            saveOnlineAndLocal();
+            logMessage(`மரம் ஏறி, வெட்டி, இறங்கியது உறுதி! மொத்த மரங்கள்: ${treeCount}`);
         }
     }
 
