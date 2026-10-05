@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>தென்னை மரம் வெட்டும் அதிர்வு கவுண்டர்</title>
+    <title>தென்னை மரம் ஏறி வெட்டும் துல்லியமான கவுண்டர்</title>
     <style>
         :root {
             --primary: #2e7d32;
@@ -203,7 +203,7 @@
 <body>
 
 <div class="container">
-    <h2>தென்னை மரம் வெட்டும் அதிர்வு கவுண்டர்</h2>
+    <h2>தென்னை மரம் ஏறி வெட்டும் துல்லியமான கவுண்டர்</h2>
 
     <!-- Worker Dropdown with Scroll Down -->
     <div class="worker-selection">
@@ -249,17 +249,17 @@
         சென்சார் நிலை: காத்திருக்கிறது...
     </div>
 
-    <!-- Current Round Status Display -->
+    <!-- Current Status Display -->
     <div class="counter-card">
-        <div class="counter-title">வெட்டும் அதிர்வு நிலை (Cutting Status)</div>
+        <div class="counter-title">செயல்முறை நிலை (Process Phase)</div>
         <div id="statusDisplay" style="font-size: 16px; font-weight: bold; margin-top: 10px;">தரையில்தான் உள்ளார்</div>
     </div>
 
     <!-- Stats Grid -->
     <div class="stats-grid">
         <div class="stat-box">
-            <div class="stat-label">வெட்டு அதிர்வுகள் (Cuts)</div>
-            <div id="cutCountValue" class="stat-val">0 / 4</div>
+            <div class="stat-label">வெட்டு நிலை (Cuts)</div>
+            <div id="cutStatusValue" class="stat-val">0 / 2</div>
         </div>
         <div class="stat-box">
             <div class="stat-label">ஆன்லைன் நிலை</div>
@@ -287,17 +287,22 @@
 
 <script>
     let treeCount = 0;
-    let cutVibrations = 0; // வெட்டும் அதிர்வுகளின் எண்ணிக்கை
-    let workPhase = 0; // 0: தரை, 1: ஏறுதல், 2: வெட்டுதல் (பல அதிர்வுகள்), 3: இறங்குதல்
+    // Strict 4-Stage State Machine:
+    // 0: தரை நிலை (Ground)
+    // 1: 10 விநாடிக்கு மேல் மரம் ஏறுதல் (Climbing >= 10s)
+    // 2: உச்சியில் 1 அல்லது 2 வெட்டு அதிர்வுகள் (Cutting 1-2 vibrations)
+    // 3: கீழே இறங்குதல் (Descent complete -> Triggers +1 count)
+    let workPhase = 0; 
+    let phaseTimer = 0;
+    let cutCount = 0;
     let hasPermissionGranted = false;
-    let lastCutTime = 0;
     
     // Unchanged Apps Script URL for Google Sheets Sync
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx0KF9jQyVuJlbsLTAOLqEmMN0fUjsSb90XJ8ShwJ6wgKUYuRAFK26S4Dnf70Pc_HmR/exec";
 
     const workerSelect = document.getElementById('workerSelect');
     const counterElement = document.getElementById('counterValue');
-    const cutCountElement = document.getElementById('cutCountValue');
+    const cutStatusElement = document.getElementById('cutStatusValue');
     const statusDisplay = document.getElementById('statusDisplay');
     const sensorStatus = document.getElementById('sensorStatus');
     const syncStatus = document.getElementById('syncStatus');
@@ -314,8 +319,9 @@
         treeCount = savedData !== null ? parseInt(savedData) : 0;
         counterElement.textContent = treeCount;
         workPhase = 0;
-        cutVibrations = 0;
-        cutCountElement.textContent = "0 / 4";
+        phaseTimer = 0;
+        cutCount = 0;
+        cutStatusElement.textContent = "0 / 2";
         statusDisplay.textContent = "தரையில்தான் உள்ளார்";
         logMessage(`தொழிலாளி தேர்ந்தெடுக்கப்பட்டார்: ${worker}`);
     });
@@ -358,9 +364,10 @@
         if (confirm('கவுண்டரை மீட்டமைக்க விரும்புகிறீர்களா?')) {
             treeCount = 0;
             workPhase = 0;
-            cutVibrations = 0;
+            phaseTimer = 0;
+            cutCount = 0;
             counterElement.textContent = treeCount;
-            cutCountElement.textContent = "0 / 4";
+            cutStatusElement.textContent = "0 / 2";
             statusDisplay.textContent = "தரையில்தான் உள்ளார்";
             saveOnlineAndLocal();
             logMessage('கவுண்டர் மீட்டமைக்கப்பட்டது.');
@@ -407,6 +414,7 @@
     }
 
     let lastTime = Date.now();
+    let lastCutTime = 0;
 
     function handleMotion(event) {
         if (!hasPermissionGranted) return;
@@ -425,43 +433,52 @@
 
         const linearAccZ = accZ - 9.81;
 
-        // Stage 0 -> 1: மரம் ஏறுவது (Ascent)
+        // Stage 0 -> 1: மரம் ஏறுதல் (Climbing with strict 10 seconds timing interval check)
         if (linearAccZ > 2.0 && workPhase === 0) {
-            workPhase = 1;
-            statusDisplay.textContent = "மரத்தில் ஏறிக்கொண்டிருக்கிறார் 🌴";
-            logMessage('மரம் ஏறுவது கண்டறியப்பட்டது.');
+            phaseTimer += dt;
+            statusDisplay.textContent = `மரத்தில் ஏறுகிறார்... (${Math.round(phaseTimer)}/10 விநாடி)`;
+            if (phaseTimer >= 10.0) { // குறைந்தது 10 விநாடிகள் தொடர் ஏறும் அசைவு இருக்க வேண்டும்
+                workPhase = 1;
+                phaseTimer = 0;
+                statusDisplay.textContent = "மரத்தில் ஏறிவிட்டார். உச்சியில் உள்ளார் 🌴";
+                logMessage('10 விநாடி மரம் ஏறுதல் காலமுறைப்படி உறுதி செய்யப்பட்டது.');
+            }
         } 
-        // Stage 1 -> 2: உச்சியில் வெட்டும் அதிர்வுகள் (Multiple Cutting Vibrations Required e.g., 4 cuts)
-        else if (workPhase === 1 && (rotRate > 55 || accX > 4.2)) {
-            // வெட்டுதல்களுக்கு இடையே குறைந்தபட்ச இடைவெளி இருக்க வேண்டும் (தவறான அதிர்வுகளைத் தவிர்க்க)
-            if (currentTime - lastCutTime > 800) {
-                cutVibrations++;
+        // Stage 1 -> 2: உச்சியில் 1 அல்லது 2 வெட்டு அதிர்வுகள் (Cutting vibration detection)
+        else if (workPhase === 1 && (rotRate > 55 || accX > 4.5)) {
+            if (currentTime - lastCutTime > 1000) { // வெட்டுகளுக்கு இடையே குறைந்தபட்ச இடைவெளி
+                cutCount++;
                 lastCutTime = currentTime;
-                cutCountElement.textContent = cutVibrations + " / 4";
-                statusDisplay.textContent = `காய் வெட்டுகிறார் (${cutVibrations}/4 வெட்டுகள்) 🥥`;
-                logMessage(`வெட்டு அதிர்வு பதிவு: ${cutVibrations}/4`);
+                cutStatusElement.textContent = cutCount + " / 2";
+                statusDisplay.textContent = `தேங்காய் வெட்டும் அதிர்வு (${cutCount}/2) 🥥`;
+                logMessage(`வெட்டு அதிர்வு கண்டறியப்பட்டது: ${cutCount}`);
 
-                // 4 வெட்டுகள் முடிந்ததும் அடுத்த கட்டத்திற்கு (இறங்குதல்) செல்லும்
-                if (cutVibrations >= 4) {
+                if (cutCount >= 2) { // 2 வெட்டு அதிர்வுகள் முடிந்ததும் இறங்கும் கட்டத்திற்குச் செல்லும்
                     workPhase = 2;
+                    phaseTimer = 0;
                     statusDisplay.textContent = "வெட்டி முடித்தார். கீழே இறங்குகிறார் ⬇️";
-                    logMessage('தேவையான அனைத்து வெட்டுகளும் முடிந்துவிட்டன. இறங்கத் தொடங்குகிறார்.');
+                    logMessage('வெட்டும் அதிர்வுகள் நிறைவுபெற்றன. இறங்கத் தொடங்குகிறார்.');
                 }
             }
         }
         // Stage 2 -> 3 (Complete): கீழே இறங்குவது மற்றும் தரை சேருவது (Descent complete -> Triggers +1 count)
         else if (workPhase === 2 && linearAccZ < -2.0) {
-            workPhase = 0; // Reset for next tree
-            cutVibrations = 0;
-            cutCountElement.textContent = "0 / 4";
-            treeCount++;
-            counterElement.textContent = treeCount;
-            statusDisplay.textContent = "தரையில்தான் உள்ளார் (மரம் முடிந்தது)";
-            
-            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-            playBeep();
-            saveOnlineAndLocal();
-            logMessage(`மரம் ஏறி, வெட்டி, இறங்கியது உறுதி! மொத்த மரங்கள்: ${treeCount}`);
+            phaseTimer += dt;
+            if (phaseTimer >= 3.0) { // குறைந்தது 3 விநாடிகள் இறங்கும் அசைவு இருக்க வேண்டும்
+                workPhase = 0; // Reset for next tree
+                phaseTimer = 0;
+                cutCount = 0;
+                cutStatusElement.textContent = "0 / 2";
+                
+                treeCount++;
+                counterElement.textContent = treeCount;
+                statusDisplay.textContent = "தரையில்தான் உள்ளார் (மரம் முடிந்தது)";
+                
+                if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+                playBeep();
+                saveOnlineAndLocal();
+                logMessage(`மரம் ஏறி, வெட்டி, இறங்கியது உறுதி! மொத்த மரங்கள்: ${treeCount}`);
+            }
         }
     }
 
